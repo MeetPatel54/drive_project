@@ -95,9 +95,15 @@ const streamFromDrive = async (fileId, res) => {
     { responseType: "stream" }
   );
 
-  res.setHeader("Content-Type", mimeType);
-  res.setHeader("Content-Disposition", `inline; filename="${name}"`);
-  if (size) res.setHeader("Content-Length", size);
+  const encodedName = encodeURIComponent(name || "file");
+
+  res.setHeader("Content-Type", mimeType || "application/octet-stream");
+  res.setHeader("Content-Disposition", `inline; filename="${encodedName}"; filename*=UTF-8''${encodedName}`);
+
+  const sizeNum = parseInt(size, 10);
+  if (!isNaN(sizeNum) && sizeNum > 0) {
+    res.setHeader("Content-Length", sizeNum);
+  }
 
   response.data.pipe(res);
 };

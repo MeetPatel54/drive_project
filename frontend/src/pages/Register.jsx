@@ -3,10 +3,12 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { ErrorMessage } from "../components/ui";
 
+const NATIVE_VILLAGES = ["Visnagar", "Kansa", "Basna", "Kamana", "Valam"];
+
 const Register = () => {
   const { register } = useAuth();
   const navigate = useNavigate();
-  const [form, setForm] = useState({ name: "", email: "", password: "", village: "" });
+  const [form, setForm] = useState({ name: "", email: "", password: "", nativeVillage: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -55,9 +57,19 @@ const Register = () => {
               </div>
               <div className="col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Village <span className="text-gray-400 font-normal">(optional)</span>
+                  Native Village <span className="text-red-500">*</span>
                 </label>
-                <input className="input" placeholder="Your village name" value={form.village} onChange={set("village")} />
+                <select
+                  className="input"
+                  value={form.nativeVillage}
+                  onChange={set("nativeVillage")}
+                  required
+                >
+                  <option value="">Select native village</option>
+                  {NATIVE_VILLAGES.map((village) => (
+                    <option key={village} value={village}>{village}</option>
+                  ))}
+                </select>
               </div>
             </div>
 

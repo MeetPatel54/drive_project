@@ -1,6 +1,8 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 
+const NATIVE_VILLAGES = ["Visnagar", "Kansa", "Basna", "Kamana", "Valam"];
+
 const userSchema = new mongoose.Schema(
   {
     name: {
@@ -28,6 +30,15 @@ const userSchema = new mongoose.Schema(
     },
     village: {
       type: String,
+      trim: true,
+      default: "",
+    },
+    nativeVillage: {
+      type: String,
+      enum: [...NATIVE_VILLAGES, ""],
+      required: function () {
+        return this.role === "student";
+      },
       trim: true,
       default: "",
     },

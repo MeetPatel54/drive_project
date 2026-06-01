@@ -7,6 +7,7 @@ const {
   updateStatus,
   getTopStudents,
   getStats,
+  getAnalytics,
   deleteResult,
   streamResult,
 } = require("../controllers/resultController");
@@ -33,6 +34,7 @@ router.get("/my",  restrictTo("student"), getMyResults);
 // Teacher routes
 router.get("/all",   restrictTo("teacher"), getAllResults);
 router.get("/stats", restrictTo("teacher"), getStats);
+router.get("/analytics", restrictTo("teacher"), getAnalytics);
 router.patch("/:id/status", restrictTo("teacher"), validate(updateStatusSchema), updateStatus);
 
 // Shared — stream result file (student: own only, teacher: any)

@@ -4,7 +4,7 @@ const { sendToken } = require("../utils/token");
 // POST /api/auth/register — students only
 const register = async (req, res) => {
   try {
-    const { name, email, password, village } = req.body;
+    const { name, email, password, nativeVillage } = req.body;
 
     const existingUser = await User.findOne({ email });
     if (existingUser) {
@@ -15,7 +15,8 @@ const register = async (req, res) => {
       name,
       email,
       password,
-      village: village || "",
+      village: nativeVillage,
+      nativeVillage,
       role: "student", // registration always creates students
     });
 
@@ -52,9 +53,36 @@ const getMe = async (req, res) => {
       name: req.user.name,
       email: req.user.email,
       role: req.user.role,
-      village: req.user.village,
+      village: req.user.nativeVillage || req.user.village,
+      nativeVillage: req.user.nativeVillage || req.user.village,
     },
   });
 };
 
-module.exports = { register, login, getMe };
+// PATCH /api/auth/me — complete/update student profile
+const updateMe = async (req, res) => {
+  try {
+    const { nativeVillage } = req.body;
+
+    req.user.nativeVillage = nativeVillage;
+    req.user.village = nativeVillage;
+    await req.user.save({ validateBeforeSave: false });
+
+    res.json({
+      success: true,
+      user: {
+        id: req.user._id,
+        name: req.user.name,
+        email: req.user.email,
+        role: req.user.role,
+        village: req.user.nativeVillage || req.user.village,
+        nativeVillage: req.user.nativeVillage || req.user.village,
+      },
+    });
+  } catch (err) {
+    console.error("updateMe error:", err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+module.exports = { register, login, getMe, updateMe };

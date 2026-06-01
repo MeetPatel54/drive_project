@@ -1,21 +1,45 @@
 import { useState, useEffect, useCallback } from "react";
+import { Link } from "react-router-dom";
 import api from "../services/api";
-import { StatusBadge, PageLoader, EmptyState, StatCard } from "../components/ui";
+import FileViewerModal from "../components/FileViewerModal";
+import { StatusBadge, EmptyState, StatCard } from "../components/ui";
+import { useFileViewer } from "../hooks/useFileViewer";
+import {
+  formatResultDate,
+  formatResultLevel,
+  formatResultScore,
+  getScoreColor,
+  resultExportColumns,
+  resultToExportRow,
+} from "../utils/resultFormatters";
+import { exportSectionsToExcel, printSectionsAsPdf } from "../utils/exportUtils";
+
+const RESULT_CATEGORIES = ["1st-10th", "11th-12th", "Diploma", "Undergraduate", "Postgraduate", "Government Exams"];
 
 const TeacherDashboard = () => {
   const [results, setResults]   = useState([]);
   const [stats, setStats]       = useState(null);
   const [loading, setLoading]   = useState(true);
   const [actionId, setActionId] = useState(null);
-  const [filters, setFilters]   = useState({ status: "", minPercentage: "", maxPercentage: "", village: "" });
+  const [filters, setFilters] = useState({
+    status: "",
+    category: "",
+    minPercentage: "",
+    maxPercentage: "",
+    village: "",
+    institution: "",
+    dateFrom: "",
+    dateTo: "",
+  });
   const [rejectModal, setRejectModal] = useState({ open: false, id: null, reason: "" });
+  const { fileViewer, openFileViewer, closeFileViewer } = useFileViewer();
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const params = Object.fromEntries(Object.entries(filters).filter(([, v]) => v));
       const [rRes, sRes] = await Promise.all([
-        api.get("/results/all", { params }),
+        api.get("/results/all", { params: { ...params, limit: 100 } }),
         api.get("/results/stats"),
       ]);
       setResults(rRes.data.data);
@@ -43,12 +67,53 @@ const TeacherDashboard = () => {
   };
 
   const setFilter = (k) => (e) => setFilters((f) => ({ ...f, [k]: e.target.value }));
+  const clearFilters = () => setFilters({
+    status: "",
+    category: "",
+    minPercentage: "",
+    maxPercentage: "",
+    village: "",
+    institution: "",
+    dateFrom: "",
+    dateTo: "",
+  });
+
+  const exportRows = results.map(resultToExportRow);
+  const exportSections = [{
+    title: "Teacher Dashboard Results",
+    columns: resultExportColumns,
+    rows: exportRows,
+  }];
+
+  const exportExcel = () => exportSectionsToExcel({
+    title: "Teacher Dashboard Results",
+    fileName: "teacher-dashboard-results",
+    sections: exportSections,
+  });
+
+  const exportPdf = () => printSectionsAsPdf({
+    title: "Teacher Dashboard Results",
+    sections: exportSections,
+  });
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Teacher Dashboard</h1>
-        <p className="text-gray-500 text-sm mt-1">Review and manage student results</p>
+      <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Teacher Dashboard</h1>
+          <p className="text-gray-500 text-sm mt-1">Review submissions, approve results, and export current views.</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Link to="/teacher/analytics" className="btn-primary btn-sm">
+            Open Analytics
+          </Link>
+          <button type="button" onClick={exportExcel} className="btn-secondary btn-sm" disabled={!results.length}>
+            Export Excel
+          </button>
+          <button type="button" onClick={exportPdf} className="btn-secondary btn-sm" disabled={!results.length}>
+            Export PDF
+          </button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -64,17 +129,28 @@ const TeacherDashboard = () => {
 
       {/* Filters */}
       <div className="card p-4 mb-6">
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-3">
           <select className="input text-sm" value={filters.status} onChange={setFilter("status")}>
             <option value="">All Statuses</option>
             <option value="pending">Pending</option>
             <option value="approved">Approved</option>
             <option value="rejected">Rejected</option>
           </select>
+          <select className="input text-sm" value={filters.category} onChange={setFilter("category")}>
+            <option value="">All Categories</option>
+            {RESULT_CATEGORIES.map((category) => (
+              <option key={category} value={category}>{category}</option>
+            ))}
+          </select>
           <input className="input text-sm" placeholder="Min %" type="number" value={filters.minPercentage} onChange={setFilter("minPercentage")} />
           <input className="input text-sm" placeholder="Max %" type="number" value={filters.maxPercentage} onChange={setFilter("maxPercentage")} />
           <input className="input text-sm" placeholder="Village..." value={filters.village} onChange={setFilter("village")} />
-          <button onClick={() => setFilters({ status: "", minPercentage: "", maxPercentage: "", village: "" })} className="btn-secondary text-sm">
+          <input className="input text-sm" placeholder="School / college..." value={filters.institution} onChange={setFilter("institution")} />
+          <input className="input text-sm" type="date" value={filters.dateFrom} onChange={setFilter("dateFrom")} />
+          <input className="input text-sm" type="date" value={filters.dateTo} onChange={setFilter("dateTo")} />
+        </div>
+        <div className="mt-3 flex justify-end">
+          <button onClick={clearFilters} className="btn-secondary text-sm">
             Clear Filters
           </button>
         </div>
@@ -83,7 +159,10 @@ const TeacherDashboard = () => {
       {/* Table */}
       <div className="card overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h2 className="font-semibold text-gray-900">All Results</h2>
+          <div>
+            <h2 className="font-semibold text-gray-900">Review Queue</h2>
+            <p className="text-xs text-gray-500">Showing up to 100 results for the selected filters.</p>
+          </div>
           <span className="text-sm text-gray-500">{results.length} result{results.length !== 1 ? "s" : ""}</span>
         </div>
 
@@ -96,7 +175,7 @@ const TeacherDashboard = () => {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-100">
                 <tr>
-                  {["Student", "Village", "Subject", "Year", "Grade", "%", "Status", "Submitted", "File", "Actions"].map((h) => (
+                  {["Student", "Village", "Category", "Year", "Level", "Score", "Status", "Submitted", "File", "Actions"].map((h) => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
                       {h}
                     </th>
@@ -111,12 +190,12 @@ const TeacherDashboard = () => {
                       <div className="text-xs text-gray-400">{r.userId?.email}</div>
                     </td>
                     <td className="px-4 py-3 text-gray-600">{r.village || "—"}</td>
-                    <td className="px-4 py-3 text-gray-600">{r.subject || "—"}</td>
+                    <td className="px-4 py-3 text-gray-600">{r.category || r.subject || "—"}</td>
                     <td className="px-4 py-3 text-gray-600">{r.examYear || "—"}</td>
-                    <td className="px-4 py-3 text-gray-600">{r.grade || "—"}</td>
+                    <td className="px-4 py-3 text-gray-600">{formatResultLevel(r)}</td>
                     <td className="px-4 py-3">
-                      <span className={`font-bold ${r.percentage >= 75 ? "text-emerald-600" : r.percentage >= 50 ? "text-amber-600" : "text-red-600"}`}>
-                        {r.percentage}%
+                      <span className={`font-bold ${getScoreColor(r.percentage)}`}>
+                        {formatResultScore(r)}
                       </span>
                     </td>
                     <td className="px-4 py-3">
@@ -128,17 +207,16 @@ const TeacherDashboard = () => {
                       )}
                     </td>
                     <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
-                      {new Date(r.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                      {formatResultDate(r.createdAt)}
                     </td>
                     <td className="px-4 py-3">
-                      <a
-                        href={`/api/results/${r._id}/stream?token=${localStorage.getItem("token")}`}
-                        target="_blank"
-                        rel="noreferrer"
+                      <button
+                        type="button"
+                        onClick={() => openFileViewer(r)}
                         className="btn btn-secondary btn-sm whitespace-nowrap"
                       >
                         View File
-                      </a>
+                      </button>
                     </td>
                     <td className="px-4 py-3">
                       {r.status === "pending" && (
@@ -203,6 +281,12 @@ const TeacherDashboard = () => {
           </div>
         </div>
       )}
+
+      <FileViewerModal
+        isOpen={fileViewer.open}
+        file={fileViewer.file}
+        onClose={closeFileViewer}
+      />
     </div>
   );
 };

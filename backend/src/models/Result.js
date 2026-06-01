@@ -1,5 +1,13 @@
 const mongoose = require("mongoose");
 
+const RESULT_CATEGORIES = [
+  "1st-10th",
+  "11th-12th & Diploma",
+  "Undergraduate",
+  "Postgraduate",
+  "Government Exams",
+];
+
 const resultSchema = new mongoose.Schema(
   {
     studentName: {
@@ -14,9 +22,39 @@ const resultSchema = new mongoose.Schema(
     },
     percentage: {
       type: Number,
-      required: [true, "Percentage is required"],
+      default: null,
       min: [0, "Percentage cannot be less than 0"],
       max: [100, "Percentage cannot exceed 100"],
+    },
+    category: {
+      type: String,
+      enum: [...RESULT_CATEGORIES, ""],
+      default: "",
+    },
+    subCategory: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    stream: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    course: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    educationDetails: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {},
+    },
+    description: {
+      type: String,
+      trim: true,
+      default: "",
+      maxlength: 1000,
     },
     grade: {
       type: String,
@@ -76,5 +114,7 @@ const resultSchema = new mongoose.Schema(
 resultSchema.index({ userId: 1 });
 resultSchema.index({ status: 1 });
 resultSchema.index({ percentage: -1 });
+resultSchema.index({ category: 1 });
+resultSchema.index({ village: 1 });
 
 module.exports = mongoose.model("Result", resultSchema);

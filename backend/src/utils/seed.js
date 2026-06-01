@@ -19,6 +19,7 @@ const seed = async () => {
     password: "teacher123",
     role: "teacher",
     village: "",
+    nativeVillage: "",
   });
 
   console.log("✅ Default teacher account created:");

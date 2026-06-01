@@ -2,13 +2,17 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import api from "../services/api";
 import { useAuth } from "../context/AuthContext";
+import FileViewerModal from "../components/FileViewerModal";
 import { StatusBadge, PageLoader, EmptyState, StatCard } from "../components/ui";
+import { useFileViewer } from "../hooks/useFileViewer";
+import { formatResultScore } from "../utils/resultFormatters";
 
 const StudentDashboard = () => {
   const { user } = useAuth();
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(null);
+  const { fileViewer, openFileViewer, closeFileViewer } = useFileViewer();
 
   const fetchResults = async () => {
     try {
@@ -86,7 +90,7 @@ const StudentDashboard = () => {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-100">
                 <tr>
-                  {["Student Name", "Subject", "Year", "Percentage", "Status", "Uploaded", "Actions"].map((h) => (
+                  {["Student Name", "Category", "Year", "Score", "Status", "Uploaded", "Actions"].map((h) => (
                     <th key={h} className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                       {h}
                     </th>
@@ -97,10 +101,10 @@ const StudentDashboard = () => {
                 {results.map((r) => (
                   <tr key={r._id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4 font-medium text-gray-900">{r.studentName}</td>
-                    <td className="px-6 py-4 text-gray-600">{r.subject || "—"}</td>
+                    <td className="px-6 py-4 text-gray-600">{r.category || r.subject || "—"}</td>
                     <td className="px-6 py-4 text-gray-600">{r.examYear || "—"}</td>
                     <td className="px-6 py-4">
-                      <span className="font-semibold text-gray-900">{r.percentage}%</span>
+                      <span className="font-semibold text-gray-900">{formatResultScore(r)}</span>
                     </td>
                     <td className="px-6 py-4">
                       <StatusBadge status={r.status} />
@@ -115,14 +119,13 @@ const StudentDashboard = () => {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex gap-2">
-                        <a
-                          href={`/api/results/${r._id}/stream?token=${localStorage.getItem("token")}`}
-                          target="_blank"
-                          rel="noreferrer"
+                        <button
+                          type="button"
+                          onClick={() => openFileViewer(r)}
                           className="btn btn-secondary btn-sm"
                         >
                           View
-                        </a>
+                        </button>
                         {r.status === "pending" && (
                           <button
                             onClick={() => handleDelete(r._id)}
@@ -141,6 +144,12 @@ const StudentDashboard = () => {
           </div>
         )}
       </div>
+
+      <FileViewerModal
+        isOpen={fileViewer.open}
+        file={fileViewer.file}
+        onClose={closeFileViewer}
+      />
     </div>
   );
 };

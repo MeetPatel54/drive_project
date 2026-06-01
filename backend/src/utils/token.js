@@ -16,7 +16,8 @@ const sendToken = (user, statusCode, res) => {
       name: user.name,
       email: user.email,
       role: user.role,
-      village: user.village,
+      village: user.nativeVillage || user.village,
+      nativeVillage: user.nativeVillage || user.village,
     },
   });
 };
