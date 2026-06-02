@@ -22,6 +22,7 @@ const TeacherDashboard = () => {
   const [stats, setStats]       = useState(null);
   const [loading, setLoading]   = useState(true);
   const [actionId, setActionId] = useState(null);
+  const [lockError, setLockError] = useState("");
   const [filters, setFilters] = useState({
     status: "",
     category: "",
@@ -69,6 +70,32 @@ const TeacherDashboard = () => {
     }
   };
 
+  const handleLock = async (id) => {
+    setActionId(id);
+    setLockError("");
+    try {
+      await api.post(`/results/${id}/lock`);
+      await fetchData();
+    } catch (err) {
+      setLockError(err.response?.data?.error || "Could not start review.");
+    } finally {
+      setActionId(null);
+    }
+  };
+
+  const handleCancelReview = async (id) => {
+    setActionId(id);
+    setLockError("");
+    try {
+      await api.post(`/results/${id}/cancel-review`);
+      await fetchData();
+    } catch (err) {
+      setLockError(err.response?.data?.error || "Could not cancel review.");
+    } finally {
+      setActionId(null);
+    }
+  };
+
   const setFilter = (k) => (e) => setFilters((f) => ({ ...f, [k]: e.target.value }));
   const clearFilters = () => setFilters({
     status: "",
@@ -98,6 +125,17 @@ const TeacherDashboard = () => {
     title: "Teacher Dashboard Results",
     sections: exportSections,
   });
+
+  const currentUser = (() => {
+    try { return JSON.parse(localStorage.getItem("user")); } catch { return null; }
+  })();
+
+  const isMyLock = (result) => {
+    const reviewerId = result.reviewLock?.reviewerId?._id || result.reviewLock?.reviewerId;
+    return reviewerId && currentUser?.id && reviewerId.toString() === currentUser.id.toString();
+  };
+
+  const lockReviewerName = (result) => result.reviewLock?.reviewerId?.name || "another teacher";
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
@@ -130,9 +168,10 @@ const TeacherDashboard = () => {
 
       {/* Stats */}
       {stats && (
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
           <StatCard label="Total"    value={stats.total}          icon="📄" color="indigo"  />
           <StatCard label="Pending"  value={stats.pending}        icon="⏳" color="amber"   />
+          <StatCard label="Under Review" value={stats.underReview || 0} icon="🔎" color="indigo" />
           <StatCard label="Approved" value={stats.approved}       icon="✅" color="emerald" />
           <StatCard label="Rejected" value={stats.rejected}       icon="❌" color="red"     />
           <StatCard label="Avg %"    value={`${stats.avgPercentage}%`} icon="📊" color="indigo" />
@@ -145,6 +184,7 @@ const TeacherDashboard = () => {
           <select className="input text-sm" value={filters.status} onChange={setFilter("status")}>
             <option value="">All Statuses</option>
             <option value="pending">Pending</option>
+            <option value="under_review">Under Review</option>
             <option value="approved">Approved</option>
             <option value="rejected">Rejected</option>
           </select>
@@ -167,6 +207,12 @@ const TeacherDashboard = () => {
           </button>
         </div>
       </div>
+
+      {lockError && (
+        <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+          {lockError}
+        </div>
+      )}
 
       {/* Table */}
       <div className="card overflow-hidden">
@@ -217,6 +263,11 @@ const TeacherDashboard = () => {
                           {r.rejectionReason}
                         </p>
                       )}
+                      {r.status === "under_review" && (
+                        <p className="text-xs text-blue-500 mt-1 max-w-[150px] truncate" title={`Currently under review by ${lockReviewerName(r)}`}>
+                          Currently under review
+                        </p>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
                       {formatResultDate(r.createdAt)}
@@ -232,6 +283,15 @@ const TeacherDashboard = () => {
                     </td>
                     <td className="px-4 py-3">
                       {r.status === "pending" && (
+                        <button
+                          onClick={() => handleLock(r._id)}
+                          disabled={actionId === r._id}
+                          className="btn-primary btn-sm"
+                        >
+                          {actionId === r._id ? "..." : "Review"}
+                        </button>
+                      )}
+                      {r.status === "under_review" && isMyLock(r) && (
                         <div className="flex gap-2">
                           <button
                             onClick={() => handleStatus(r._id, "approved")}
@@ -246,9 +306,21 @@ const TeacherDashboard = () => {
                           >
                             Reject
                           </button>
+                          <button
+                            onClick={() => handleCancelReview(r._id)}
+                            disabled={actionId === r._id}
+                            className="btn-secondary btn-sm"
+                          >
+                            Cancel
+                          </button>
                         </div>
                       )}
-                      {r.status !== "pending" && (
+                      {r.status === "under_review" && !isMyLock(r) && (
+                        <span className="text-xs text-blue-500">
+                          Locked by {lockReviewerName(r)}
+                        </span>
+                      )}
+                      {["approved", "rejected"].includes(r.status) && (
                         <span className="text-xs text-gray-400">
                           {r.reviewedBy?.name || "—"}
                         </span>

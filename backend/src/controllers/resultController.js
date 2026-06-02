@@ -3,6 +3,8 @@ const User = require("../models/User");
 const Notification = require("../models/Notification");
 const { uploadToDrive, deleteFromDrive, streamFromDrive } = require("../utils/driveHelper");
 
+const REVIEW_LOCK_MINUTES = 10;
+
 const toNumber = (value) => {
   if (value === undefined || value === null || value === "") return null;
   const number = Number(value);
@@ -275,6 +277,116 @@ const toStudentScore = (result) => ({
   result,
 });
 
+const getReviewLockExpiry = () => new Date(Date.now() + REVIEW_LOCK_MINUTES * 60 * 1000);
+
+const clearExpiredReviewLocks = async () => {
+  const now = new Date();
+  return Result.updateMany(
+    {
+      status: "under_review",
+      "reviewLock.expiresAt": { $lte: now },
+    },
+    {
+      $set: { status: "pending" },
+      $unset: { reviewLock: "" },
+    }
+  );
+};
+
+const lockResult = async (req, res) => {
+  try {
+    const now = new Date();
+    const expiresAt = getReviewLockExpiry();
+
+    const result = await Result.findOneAndUpdate(
+      {
+        _id: req.params.id,
+        status: "pending",
+        $or: [
+          { reviewLock: null },
+          { "reviewLock.reviewerId": null },
+          { "reviewLock.expiresAt": { $lte: now } },
+        ],
+      },
+      {
+        $set: {
+          status: "under_review",
+          reviewLock: {
+            reviewerId: req.user._id,
+            lockedAt: now,
+            expiresAt,
+          },
+        },
+      },
+      { new: true }
+    )
+      .populate("userId", "name email village nativeVillage")
+      .populate("reviewedBy", "name email")
+      .populate("reviewLock.reviewerId", "name email");
+
+    if (result) {
+      return res.json({ success: true, data: result });
+    }
+
+    const existing = await Result.findById(req.params.id).populate("reviewLock.reviewerId", "name email");
+    if (!existing) {
+      return res.status(404).json({ success: false, error: "Result not found." });
+    }
+
+    if (
+      existing.status === "under_review" &&
+      existing.reviewLock?.reviewerId &&
+      existing.reviewLock.expiresAt > now
+    ) {
+      return res.status(409).json({
+        success: false,
+        error: "This result is currently being reviewed by another teacher.",
+        data: existing,
+      });
+    }
+
+    return res.status(400).json({
+      success: false,
+      error: "Only pending results can be locked for review.",
+      data: existing,
+    });
+  } catch (err) {
+    console.error("lockResult error:", err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+const unlockResult = async (req, res) => {
+  try {
+    const result = await Result.findOneAndUpdate(
+      {
+        _id: req.params.id,
+        status: "under_review",
+        "reviewLock.reviewerId": req.user._id,
+      },
+      {
+        $set: { status: "pending" },
+        $unset: { reviewLock: "" },
+      },
+      { new: true }
+    )
+      .populate("userId", "name email village nativeVillage")
+      .populate("reviewedBy", "name email");
+
+    if (!result) {
+      return res.status(403).json({
+        success: false,
+        error: "You can only cancel a review lock that you own.",
+      });
+    }
+
+    res.json({ success: true, data: result });
+  } catch (err) {
+    console.error("unlockResult error:", err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
 // ─── POST /api/results/upload ─── Student uploads result ───────────────────
 const uploadResult = async (req, res) => {
   const tempPath = req.file?.path;
@@ -367,7 +479,8 @@ const getAllResults = async (req, res) => {
       .skip(skip)
       .limit(parseInt(limit))
       .populate("userId", "name email village nativeVillage")
-      .populate("reviewedBy", "name email");
+      .populate("reviewedBy", "name email")
+      .populate("reviewLock.reviewerId", "name email");
 
     res.json({
       success: true,
@@ -387,16 +500,46 @@ const getAllResults = async (req, res) => {
 const updateStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, rejectionReason } = req.body;
+    const { status, rejectionReason, reviewComments } = req.body;
+    const now = new Date();
 
     const result = await Result.findById(id);
     if (!result) {
       return res.status(404).json({ success: false, error: "Result not found." });
     }
 
+    if (result.status !== "under_review") {
+      return res.status(409).json({
+        success: false,
+        error: "Please acquire the review lock before approving or rejecting this result.",
+      });
+    }
+
+    if (
+      !result.reviewLock?.reviewerId ||
+      result.reviewLock.reviewerId.toString() !== req.user._id.toString()
+    ) {
+      return res.status(409).json({
+        success: false,
+        error: "This result is currently being reviewed by another teacher.",
+      });
+    }
+
+    if (result.reviewLock.expiresAt && result.reviewLock.expiresAt <= now) {
+      result.status = "pending";
+      result.reviewLock = undefined;
+      await result.save();
+      return res.status(409).json({
+        success: false,
+        error: "Your review lock expired. Please start the review again.",
+      });
+    }
+
     result.status = status;
     result.reviewedBy = req.user._id;
     result.reviewedAt = new Date();
+    result.reviewLock = undefined;
+    result.reviewComments = reviewComments || "";
     if (status === "rejected" && rejectionReason) {
       result.rejectionReason = rejectionReason;
     } else {
@@ -441,9 +584,10 @@ const getTopStudents = async (req, res) => {
 // ─── GET /api/results/stats ─── Dashboard statistics ───────────────────────
 const getStats = async (req, res) => {
   try {
-    const [total, pending, approved, rejected, avgResult] = await Promise.all([
+    const [total, pending, underReview, approved, rejected, avgResult] = await Promise.all([
       Result.countDocuments(),
       Result.countDocuments({ status: "pending" }),
+      Result.countDocuments({ status: "under_review" }),
       Result.countDocuments({ status: "approved" }),
       Result.countDocuments({ status: "rejected" }),
       Result.aggregate([
@@ -457,6 +601,7 @@ const getStats = async (req, res) => {
       data: {
         total,
         pending,
+        underReview,
         approved,
         rejected,
         avgPercentage: avgResult[0]?.avgPercentage?.toFixed(1) || 0,
@@ -489,6 +634,7 @@ const getAnalytics = async (req, res) => {
     const statusCounts = {
       approved: results.filter((result) => result.status === "approved").length,
       pending: results.filter((result) => result.status === "pending").length,
+      under_review: results.filter((result) => result.status === "under_review").length,
       rejected: results.filter((result) => result.status === "rejected").length,
     };
 
@@ -532,6 +678,7 @@ const getAnalytics = async (req, res) => {
           totalResultSubmissions: totalResults,
           approvedResults: statusCounts.approved,
           pendingResults: statusCounts.pending,
+          underReviewResults: statusCounts.under_review,
           rejectedResults: statusCounts.rejected,
           totalVillagesCovered: new Set(results.map((result) => result.village).filter(Boolean)).size,
           averagePerformance: averageScore(scoreSource),
@@ -568,7 +715,7 @@ const getAnalytics = async (req, res) => {
           villages,
           institutions,
           categories: ["1st-10th", "11th-12th", "Diploma", "Undergraduate", "Postgraduate", "Government Exams"],
-          statuses: ["approved", "pending", "rejected"],
+          statuses: ["approved", "pending", "under_review", "rejected"],
         },
       },
     });
@@ -641,6 +788,9 @@ module.exports = {
   uploadResult,
   getMyResults,
   getAllResults,
+  lockResult,
+  unlockResult,
+  clearExpiredReviewLocks,
   updateStatus,
   getTopStudents,
   getStats,

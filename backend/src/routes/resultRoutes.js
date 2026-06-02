@@ -4,6 +4,8 @@ const {
   uploadResult,
   getMyResults,
   getAllResults,
+  lockResult,
+  unlockResult,
   updateStatus,
   getTopStudents,
   getStats,
@@ -35,6 +37,9 @@ router.get("/my",  restrictTo("student"), getMyResults);
 router.get("/all",   restrictTo("teacher"), getAllResults);
 router.get("/stats", restrictTo("teacher"), getStats);
 router.get("/analytics", restrictTo("teacher"), getAnalytics);
+router.post("/:id/lock", restrictTo("teacher"), lockResult);
+router.post("/:id/unlock", restrictTo("teacher"), unlockResult);
+router.post("/:id/cancel-review", restrictTo("teacher"), unlockResult);
 router.patch("/:id/status", restrictTo("teacher"), validate(updateStatusSchema), updateStatus);
 
 // Shared — stream result file (student: own only, teacher: any)

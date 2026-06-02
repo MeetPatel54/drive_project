@@ -4,6 +4,7 @@ const { getAuthUrl, getTokensFromCode } = require("./config/google");
 const authRoutes = require("./routes/authRoutes");
 const resultRoutes = require("./routes/resultRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
+const { startReviewLockCleanup } = require("./services/reviewLockCleanup");
 
 const app = express();
 
@@ -34,6 +35,8 @@ app.get("/auth/callback", async (req, res) => {
 app.use("/api/auth",    authRoutes);
 app.use("/api/results", resultRoutes);
 app.use("/api/notifications", notificationRoutes);
+
+startReviewLockCleanup();
 
 // ── Health check ────────────────────────────────────────────────────────────
 app.get("/api/health", (req, res) => {

@@ -268,6 +268,7 @@ const updateStatusSchema = z.object({
     errorMap: () => ({ message: "Status must be approved or rejected" }),
   }),
   rejectionReason: z.string().max(500).optional(),
+  reviewComments: z.string().max(1000).optional(),
 });
 
 const validate = (schema) => (req, res, next) => {

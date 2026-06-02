@@ -73,8 +73,23 @@ const resultSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["pending", "approved", "rejected"],
+      enum: ["pending", "under_review", "approved", "rejected"],
       default: "pending",
+    },
+    reviewLock: {
+      reviewerId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        default: null,
+      },
+      lockedAt: {
+        type: Date,
+        default: null,
+      },
+      expiresAt: {
+        type: Date,
+        default: null,
+      },
     },
     driveFileId: {
       type: String,
@@ -91,6 +106,12 @@ const resultSchema = new mongoose.Schema(
     rejectionReason: {
       type: String,
       default: "",
+    },
+    reviewComments: {
+      type: String,
+      trim: true,
+      default: "",
+      maxlength: 1000,
     },
     reviewedBy: {
       type: mongoose.Schema.Types.ObjectId,
@@ -113,6 +134,8 @@ const resultSchema = new mongoose.Schema(
 // Index for fast lookups
 resultSchema.index({ userId: 1 });
 resultSchema.index({ status: 1 });
+resultSchema.index({ "reviewLock.expiresAt": 1 });
+resultSchema.index({ status: 1, "reviewLock.expiresAt": 1 });
 resultSchema.index({ percentage: -1 });
 resultSchema.index({ category: 1 });
 resultSchema.index({ village: 1 });

@@ -2,6 +2,7 @@
 export const StatusBadge = ({ status }) => {
   const map = {
     pending:  "badge-pending",
+    under_review: "badge bg-blue-100 text-blue-800",
     approved: "badge-approved",
     rejected: "badge-rejected",
   };
