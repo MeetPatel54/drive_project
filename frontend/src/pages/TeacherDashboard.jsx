@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import api from "../services/api";
 import FileViewerModal from "../components/FileViewerModal";
+import TeacherNotificationComposer from "../components/notifications/TeacherNotificationComposer";
 import { StatusBadge, EmptyState, StatCard } from "../components/ui";
 import { useFileViewer } from "../hooks/useFileViewer";
 import {
@@ -32,6 +33,8 @@ const TeacherDashboard = () => {
     dateTo: "",
   });
   const [rejectModal, setRejectModal] = useState({ open: false, id: null, reason: "" });
+  const [notificationComposerOpen, setNotificationComposerOpen] = useState(false);
+  const [notificationSent, setNotificationSent] = useState("");
   const { fileViewer, openFileViewer, closeFileViewer } = useFileViewer();
 
   const fetchData = useCallback(async () => {
@@ -104,6 +107,9 @@ const TeacherDashboard = () => {
           <p className="text-gray-500 text-sm mt-1">Review submissions, approve results, and export current views.</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <button type="button" className="btn-primary btn-sm" onClick={() => setNotificationComposerOpen(true)}>
+            Notify Students
+          </button>
           <Link to="/teacher/analytics" className="btn-primary btn-sm">
             Open Analytics
           </Link>
@@ -115,6 +121,12 @@ const TeacherDashboard = () => {
           </button>
         </div>
       </div>
+
+      {notificationSent && (
+        <div className="mb-6 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+          {notificationSent}
+        </div>
+      )}
 
       {/* Stats */}
       {stats && (
@@ -286,6 +298,15 @@ const TeacherDashboard = () => {
         isOpen={fileViewer.open}
         file={fileViewer.file}
         onClose={closeFileViewer}
+      />
+
+      <TeacherNotificationComposer
+        open={notificationComposerOpen}
+        onClose={() => setNotificationComposerOpen(false)}
+        onSent={() => {
+          setNotificationSent("High-priority notification sent to all students.");
+          setTimeout(() => setNotificationSent(""), 3500);
+        }}
       />
     </div>
   );

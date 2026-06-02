@@ -1,5 +1,6 @@
 const Result = require("../models/Result");
 const User = require("../models/User");
+const Notification = require("../models/Notification");
 const { uploadToDrive, deleteFromDrive, streamFromDrive } = require("../utils/driveHelper");
 
 const toNumber = (value) => {
@@ -233,6 +234,34 @@ const buildAchievementText = (result) => {
   return `${result.studentName} scored ${score || "a strong result"} in ${getAnalyticsCategory(result)}`;
 };
 
+const isOutstandingResult = (result) => {
+  if (result.category === "Government Exams") return true;
+  const score = getResultScore(result);
+  return score !== null && score >= 90;
+};
+
+const createOutstandingNotification = async (result) => {
+  if (!isOutstandingResult(result)) return;
+
+  const exists = await Notification.exists({ resultId: result._id, type: "auto" });
+  if (exists) return;
+
+  await Notification.create({
+    title: "Outstanding Performance",
+    message: buildAchievementText(result),
+    type: "auto",
+    priority: "normal",
+    audience: "all_students",
+    resultId: result._id,
+    metadata: {
+      studentName: result.studentName,
+      village: result.village,
+      category: getAnalyticsCategory(result),
+      score: result.percentage,
+    },
+  });
+};
+
 const toStudentScore = (result) => ({
   id: result._id,
   studentName: result.studentName,
@@ -378,6 +407,10 @@ const updateStatus = async (req, res) => {
 
     await result.populate("reviewedBy", "name email");
     await result.populate("userId", "name email village nativeVillage");
+
+    if (status === "approved") {
+      await createOutstandingNotification(result);
+    }
 
     res.json({
       success: true,

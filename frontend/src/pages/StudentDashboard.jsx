@@ -3,8 +3,10 @@ import { Link } from "react-router-dom";
 import api from "../services/api";
 import { useAuth } from "../context/AuthContext";
 import FileViewerModal from "../components/FileViewerModal";
+import NotificationCenter from "../components/notifications/NotificationCenter";
 import { StatusBadge, PageLoader, EmptyState, StatCard } from "../components/ui";
 import { useFileViewer } from "../hooks/useFileViewer";
+import { useNotifications } from "../hooks/useNotifications";
 import { formatResultScore } from "../utils/resultFormatters";
 
 const StudentDashboard = () => {
@@ -12,7 +14,16 @@ const StudentDashboard = () => {
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(null);
+  const [showNotifications, setShowNotifications] = useState(false);
   const { fileViewer, openFileViewer, closeFileViewer } = useFileViewer();
+  const {
+    notifications,
+    unreadCount,
+    loading: notificationsLoading,
+    error: notificationsError,
+    fetchNotifications,
+    markAllRead,
+  } = useNotifications();
 
   const fetchResults = async () => {
     try {
@@ -51,15 +62,42 @@ const StudentDashboard = () => {
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-col gap-4 mb-8 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">My Results</h1>
           <p className="text-gray-500 text-sm mt-1">Welcome back, {user.name}</p>
         </div>
-        <Link to="/student/upload" className="btn-primary">
-          + Upload Result
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setShowNotifications((value) => !value)}
+            className="btn-secondary relative"
+          >
+            Notifications
+            {unreadCount > 0 && (
+              <span className="ml-1 rounded-full bg-red-600 px-2 py-0.5 text-xs font-bold text-white">
+                {unreadCount}
+              </span>
+            )}
+          </button>
+          <Link to="/student/upload" className="btn-primary">
+            + Upload Result
+          </Link>
+        </div>
       </div>
+
+      {showNotifications && (
+        <div className="mb-8">
+          <NotificationCenter
+            notifications={notifications}
+            unreadCount={unreadCount}
+            loading={notificationsLoading}
+            error={notificationsError}
+            onRefresh={fetchNotifications}
+            onMarkAllRead={markAllRead}
+          />
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4 mb-8">
