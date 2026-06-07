@@ -27,7 +27,7 @@ const notificationSchema = new mongoose.Schema(
     },
     audience: {
       type: String,
-      enum: ["all_students"],
+      enum: ["all_students", "all_teachers", "village", "category", "selected_users"],
       default: "all_students",
     },
     createdBy: {
@@ -61,5 +61,7 @@ const notificationSchema = new mongoose.Schema(
 notificationSchema.index({ audience: 1, createdAt: -1 });
 notificationSchema.index({ type: 1, priority: 1 });
 notificationSchema.index({ resultId: 1, type: 1 });
+notificationSchema.index({ "metadata.village": 1, audience: 1 });
+notificationSchema.index({ "metadata.category": 1, audience: 1 });
 
 module.exports = mongoose.model("Notification", notificationSchema);

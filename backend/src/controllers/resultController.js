@@ -119,8 +119,10 @@ const buildResultPayload = ({ body, user, driveData, originalFileName }) => {
     driveFileId: driveData.fileId,
     driveLink: driveData.driveLink,
     driveFolderName: driveData.folderName,
-    userId: user._id,
     originalFileName,
+    mimeType: driveData.mimeType || "",
+    fileSize: Number(driveData.size || 0),
+    userId: user._id,
   };
 };
 
@@ -273,6 +275,8 @@ const toStudentScore = (result) => ({
   stream: result.stream,
   course: result.course,
   percentage: result.percentage,
+  examYear: result.examYear,
+  status: result.status,
   educationDetails: result.educationDetails || {},
   result,
 });
@@ -641,15 +645,16 @@ const getAnalytics = async (req, res) => {
     const governmentResults = results.filter((result) => result.category === "Government Exams");
     const scoredResults = [...scoreSource]
       .filter((result) => getResultScore(result) !== null)
-      .sort((a, b) => getResultScore(b) - getResultScore(a))
-    const topStudents = scoredResults.slice(0, 10).map(toStudentScore);
-    const categoryScoreboards = Object.entries(groupBy(scoredResults, getAnalyticsCategory))
+      .sort((a, b) => getResultScore(b) - getResultScore(a));
+    // Scoreboard uses ALL results (any status) so teacher sees the full picture
+    const allScoredForBoard = [...results]
+      .sort((a, b) => getResultScore(b) - getResultScore(a));
+    const categoryScoreboards = Object.entries(groupBy(allScoredForBoard, getAnalyticsCategory))
       .map(([label, values]) => ({
         label,
         avgScore: averageScore(values),
         students: values
           .sort((a, b) => getResultScore(b) - getResultScore(a))
-          .slice(0, 5)
           .map(toStudentScore),
       }))
       .sort((a, b) => b.avgScore - a.avgScore);
@@ -692,7 +697,6 @@ const getAnalytics = async (req, res) => {
         villagePerformance: performanceBy(scoreSource, (result) => result.village).slice(0, 10),
         categoryDistribution,
         educationPerformance: performanceBy(scoreSource, getAnalyticsCategory),
-        topStudents,
         categoryScoreboards,
         governmentExamAchievements: countBy(governmentResults, (result) => result.educationDetails?.qualifiedExamName || result.subject).slice(0, 12),
         collegeAnalytics: countBy(

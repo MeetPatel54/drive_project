@@ -1,4 +1,5 @@
 const Notification = require("../models/Notification");
+const Result = require("../models/Result");
 
 const toNotificationView = (notification, userId) => {
   const read = notification.readBy?.some((entry) => entry.userId?.toString() === userId.toString());
@@ -16,6 +17,62 @@ const toNotificationView = (notification, userId) => {
     createdBy: notification.createdBy,
     resultId: notification.resultId,
   };
+};
+
+const getAudienceFilter = async (user) => {
+  const village = user.nativeVillage || user.village || "";
+  const assignedCategories = Array.isArray(user.assignedCategories) ? user.assignedCategories.filter(Boolean) : [];
+  const selectedUserMatchers = [user.email, String(user._id)];
+
+  const filters = [];
+
+  if (user.role === "student") {
+    filters.push({ audience: "all_students" });
+
+    if (village) {
+      filters.push({
+        audience: "village",
+        "metadata.village": village,
+      });
+    }
+
+    const studentCategories = await Result.distinct("category", {
+      userId: user._id,
+      category: { $ne: "" },
+    });
+
+    if (studentCategories.length) {
+      filters.push({
+        audience: "category",
+        "metadata.category": { $in: studentCategories },
+      });
+    }
+  }
+
+  if (["teacher", "admin", "super_admin"].includes(user.role)) {
+    filters.push({ audience: "all_teachers" });
+
+    if (village && user.role === "teacher") {
+      filters.push({
+        audience: "village",
+        "metadata.village": village,
+      });
+    }
+
+    if (assignedCategories.length) {
+      filters.push({
+        audience: "category",
+        "metadata.category": { $in: assignedCategories },
+      });
+    }
+  }
+
+  filters.push({
+    audience: "selected_users",
+    "metadata.selectedUsers": { $in: selectedUserMatchers },
+  });
+
+  return { $or: filters };
 };
 
 const createCustomNotification = async (req, res) => {
@@ -53,7 +110,7 @@ const createCustomNotification = async (req, res) => {
 
 const getNotifications = async (req, res) => {
   try {
-    const notifications = await Notification.find({ audience: "all_students" })
+    const notifications = await Notification.find(await getAudienceFilter(req.user))
       .sort({ createdAt: -1 })
       .limit(50)
       .populate("createdBy", "name email")
@@ -75,9 +132,10 @@ const getNotifications = async (req, res) => {
 const markNotificationsRead = async (req, res) => {
   try {
     const ids = Array.isArray(req.body.ids) ? req.body.ids : [];
+    const audienceFilter = await getAudienceFilter(req.user);
     const filter = ids.length
-      ? { _id: { $in: ids }, "readBy.userId": { $ne: req.user._id } }
-      : { audience: "all_students", "readBy.userId": { $ne: req.user._id } };
+      ? { _id: { $in: ids }, "readBy.userId": { $ne: req.user._id }, ...audienceFilter }
+      : { ...audienceFilter, "readBy.userId": { $ne: req.user._id } };
 
     await Notification.updateMany(filter, {
       $push: { readBy: { userId: req.user._id, readAt: new Date() } },

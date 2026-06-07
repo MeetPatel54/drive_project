@@ -37,6 +37,9 @@ const login = async (req, res) => {
       return res.status(401).json({ success: false, error: "Invalid email or password." });
     }
 
+    user.lastLoginAt = new Date();
+    await user.save({ validateBeforeSave: false });
+
     sendToken(user, 200, res);
   } catch (err) {
     console.error("login error:", err.message);
@@ -53,6 +56,10 @@ const getMe = async (req, res) => {
       name: req.user.name,
       email: req.user.email,
       role: req.user.role,
+      permissions: req.user.permissions || [],
+      assignedCategories: req.user.assignedCategories || [],
+      assignedVillages: req.user.assignedVillages || [],
+      isActive: req.user.isActive !== false,
       village: req.user.nativeVillage || req.user.village,
       nativeVillage: req.user.nativeVillage || req.user.village,
     },
@@ -75,6 +82,10 @@ const updateMe = async (req, res) => {
         name: req.user.name,
         email: req.user.email,
         role: req.user.role,
+        permissions: req.user.permissions || [],
+        assignedCategories: req.user.assignedCategories || [],
+        assignedVillages: req.user.assignedVillages || [],
+        isActive: req.user.isActive !== false,
         village: req.user.nativeVillage || req.user.village,
         nativeVillage: req.user.nativeVillage || req.user.village,
       },

@@ -25,11 +25,19 @@ const Navbar = () => {
             <div className="flex items-center gap-4">
               <div className="hidden sm:flex items-center gap-3">
                 <Link
-                  to={user.role === "teacher" ? "/teacher" : "/student"}
+                  to={user.role === "teacher" ? "/teacher" : ["admin", "super_admin"].includes(user.role) ? "/admin" : "/student"}
                   className="text-sm text-gray-600 hover:text-indigo-600 font-medium transition-colors"
                 >
                   Dashboard
                 </Link>
+                {["admin", "super_admin"].includes(user.role) && (
+                  <Link
+                    to="/admin"
+                    className="text-sm text-gray-600 hover:text-indigo-600 font-medium transition-colors"
+                  >
+                    Admin Panel
+                  </Link>
+                )}
                 {user.role === "teacher" && (
                   <Link
                     to="/teacher/analytics"

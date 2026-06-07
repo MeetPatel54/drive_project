@@ -1,3 +1,5 @@
+import { useState, useMemo } from "react";
+
 const CHART_COLORS = ["#4f46e5", "#0891b2", "#059669", "#d97706", "#dc2626", "#7c3aed", "#0f766e", "#be123c"];
 
 export const MetricCard = ({ label, value, helper, tone = "indigo" }) => {
@@ -189,96 +191,186 @@ export const CountListCard = ({ title, subtitle, data, emptyText = "No data avai
   </div>
 );
 
-export const TopStudentsTable = ({ students, onView }) => (
-  <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
-    <div className="border-b border-gray-100 p-5">
-      <h2 className="font-semibold text-gray-950">Top Performing Students</h2>
-      <p className="mt-1 text-sm text-gray-500">Top 10 approved scores across categories</p>
-    </div>
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
-          <tr>
-            {["Student", "Village", "Category", "Score", "Action"].map((heading) => (
-              <th key={heading} className="px-5 py-3 text-left font-semibold">{heading}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100">
-          {students.length === 0 ? (
-            <tr>
-              <td colSpan={5} className="px-5 py-10 text-center text-gray-500">No approved scored results yet.</td>
-            </tr>
-          ) : (
-            students.map((student) => (
-              <tr key={student.id} className="hover:bg-gray-50">
-                <td className="px-5 py-4 font-medium text-gray-950">{student.studentName}</td>
-                <td className="px-5 py-4 text-gray-600">{student.village || "-"}</td>
-                <td className="px-5 py-4 text-gray-600">
-                  {[student.course || student.subCategory || student.category, student.stream].filter(Boolean).join(" / ") || "-"}
-                </td>
-                <td className="px-5 py-4 font-semibold text-gray-950">{student.scoreLabel}</td>
-                <td className="px-5 py-4">
-                  <button type="button" className="btn-secondary btn-sm" onClick={() => onView(student.result)}>
-                    View
-                  </button>
-                </td>
-              </tr>
-            ))
-          )}
-        </tbody>
-      </table>
-    </div>
-  </div>
-);
+// ── CategoryScoreboard ────────────────────────────────────────────────────────
+// Shows ALL students grouped by sub-category for whichever category the teacher selects.
+export const CategoryScoreboard = ({ scoreboards, onView, formatScore }) => {
+  const categoryLabels = useMemo(
+    () => (scoreboards || []).map((b) => b.label),
+    [scoreboards]
+  );
 
-export const CategoryScoreboard = ({ scoreboards, onView, formatScore }) => (
-  <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
-    <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-      <div>
-        <h2 className="font-semibold text-gray-950">Category-wise Scoreboard</h2>
-        <p className="mt-1 text-sm text-gray-500">Top students inside each education category</p>
-      </div>
-    </div>
+  const [selectedCategory, setSelectedCategory] = useState(() => categoryLabels[0] || "");
 
-    {scoreboards.length === 0 ? (
-      <p className="py-8 text-center text-sm text-gray-500">No category scores available.</p>
-    ) : (
-      <div className="grid gap-4 lg:grid-cols-2">
-        {scoreboards.map((board) => (
-          <div key={board.label} className="rounded-lg border border-gray-100 bg-gray-50 p-4">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <h3 className="font-semibold text-gray-900">{board.label}</h3>
-              <span className="rounded-md bg-white px-2 py-1 text-xs font-semibold text-indigo-700">
-                Avg {board.avgScore}%
+  // Keep selection valid when scoreboards change
+  const activeLabel = categoryLabels.includes(selectedCategory)
+    ? selectedCategory
+    : categoryLabels[0] || "";
+
+  const activeBoard = useMemo(
+    () => (scoreboards || []).find((b) => b.label === activeLabel) || null,
+    [scoreboards, activeLabel]
+  );
+
+  // Group all students inside the selected category by subCategory
+  const subCategoryGroups = useMemo(() => {
+    if (!activeBoard) return [];
+    const students = activeBoard.students || [];
+
+    const map = new Map();
+    for (const student of students) {
+      // Derive sub-category label: prefer subCategory, then course, then stream, then "General"
+      const sub =
+        student.subCategory ||
+        student.course ||
+        student.stream ||
+        "General";
+      if (!map.has(sub)) map.set(sub, []);
+      map.get(sub).push(student);
+    }
+
+    // Sort students inside each group by score descending
+    const groups = [];
+    for (const [label, members] of map) {
+      groups.push({
+        label,
+        members: [...members].sort((a, b) => {
+          const sa = Number(a.percentage ?? a.marks ?? 0);
+          const sb = Number(b.percentage ?? b.marks ?? 0);
+          return sb - sa;
+        }),
+      });
+    }
+
+    // Sort groups alphabetically
+    return groups.sort((a, b) => a.label.localeCompare(b.label));
+  }, [activeBoard]);
+
+  const totalStudents = subCategoryGroups.reduce((s, g) => s + g.members.length, 0);
+
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
+      {/* Header + category selector */}
+      <div className="flex flex-col gap-3 border-b border-gray-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="font-semibold text-gray-950">Category-wise Scoreboard</h2>
+          <p className="mt-0.5 text-sm text-gray-500">
+            All students grouped by sub-category
+            {activeBoard && (
+              <span className="ml-2 text-xs text-gray-400">
+                — {totalStudents} student{totalStudents !== 1 ? "s" : ""}, avg {activeBoard.avgScore}%
               </span>
-            </div>
-            <div className="space-y-2">
-              {board.students.map((student, index) => (
-                <div key={student.id} className="flex items-center justify-between gap-3 rounded-md bg-white px-3 py-2">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-gray-900">
-                      {index + 1}. {student.studentName}
-                    </p>
-                    <p className="truncate text-xs text-gray-500">
-                      {[student.village, student.course || student.subCategory, student.stream].filter(Boolean).join(" / ")}
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <span className="text-sm font-bold text-gray-950">{formatScore(student)}</span>
-                    <button type="button" className="btn-secondary btn-sm" onClick={() => onView(student.result)}>
-                      View
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
+            )}
+          </p>
+        </div>
+
+        {/* Category tabs */}
+        <div className="flex flex-wrap gap-1.5">
+          {categoryLabels.map((label) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => setSelectedCategory(label)}
+              className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+                label === activeLabel
+                  ? "bg-indigo-600 text-white shadow-sm"
+                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
-    )}
-  </div>
-);
+
+      {/* Body */}
+      {!activeBoard || totalStudents === 0 ? (
+        <p className="py-12 text-center text-sm text-gray-500">No student data for this category.</p>
+      ) : (
+        <div className="divide-y divide-gray-100">
+          {subCategoryGroups.map((group) => (
+            <div key={group.label}>
+              {/* Sub-category header */}
+              <div className="flex items-center justify-between bg-gray-50 px-5 py-2.5">
+                <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  {group.label}
+                </span>
+                <span className="rounded bg-white px-2 py-0.5 text-xs font-medium text-gray-500 shadow-sm border border-gray-200">
+                  {group.members.length} student{group.members.length !== 1 ? "s" : ""}
+                </span>
+              </div>
+
+              {/* Student rows */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="border-b border-gray-100 text-left text-xs text-gray-400">
+                    <tr>
+                      <th className="px-5 py-2 font-medium w-8">#</th>
+                      <th className="px-5 py-2 font-medium">Student</th>
+                      <th className="px-5 py-2 font-medium">Village</th>
+                      <th className="px-5 py-2 font-medium">Exam Year</th>
+                      <th className="px-5 py-2 font-medium">Score</th>
+                      <th className="px-5 py-2 font-medium">Status</th>
+                      <th className="px-5 py-2 font-medium"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {group.members.map((student, idx) => {
+                      const score = Number(student.percentage ?? student.marks ?? 0);
+                      const scoreColor =
+                        score >= 75
+                          ? "text-emerald-600"
+                          : score >= 50
+                          ? "text-amber-600"
+                          : "text-red-500";
+
+                      return (
+                        <tr key={student.id || idx} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-5 py-3 text-xs font-bold text-gray-400">{idx + 1}</td>
+                          <td className="px-5 py-3">
+                            <p className="font-medium text-gray-900">{student.studentName}</p>
+                          </td>
+                          <td className="px-5 py-3 text-gray-500">{student.village || "—"}</td>
+                          <td className="px-5 py-3 text-gray-500">{student.examYear || "—"}</td>
+                          <td className="px-5 py-3">
+                            <span className={`font-bold ${scoreColor}`}>{formatScore(student)}</span>
+                          </td>
+                          <td className="px-5 py-3">
+                            <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
+                              student.status === "approved"
+                                ? "bg-emerald-50 text-emerald-700"
+                                : student.status === "rejected"
+                                ? "bg-red-50 text-red-600"
+                                : student.status === "under_review"
+                                ? "bg-blue-50 text-blue-600"
+                                : "bg-amber-50 text-amber-700"
+                            }`}>
+                              {student.status || "pending"}
+                            </span>
+                          </td>
+                          <td className="px-5 py-3">
+                            {student.result && (
+                              <button
+                                type="button"
+                                className="btn-secondary btn-sm"
+                                onClick={() => onView(student.result)}
+                              >
+                                View
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
 
 export const AchievementFeed = ({ achievements, onView }) => (
   <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">

@@ -32,6 +32,11 @@ const protect = async (req, res, next) => {
         .status(401)
         .json({ success: false, error: "User no longer exists." });
     }
+    if (user.isActive === false) {
+      return res
+        .status(403)
+        .json({ success: false, error: "Your account is disabled." });
+    }
 
     req.user = user;
     next();
@@ -55,4 +60,18 @@ const restrictTo =
     next();
   };
 
-module.exports = { protect, restrictTo };
+const hasPermission =
+  (...permissions) =>
+  (req, res, next) => {
+    if (req.user.role === "super_admin") return next();
+    const allowed = permissions.every((permission) => req.user.hasPermission(permission));
+    if (!allowed) {
+      return res.status(403).json({
+        success: false,
+        error: `Missing required permission: ${permissions.join(", ")}`,
+      });
+    }
+    next();
+  };
+
+module.exports = { protect, restrictTo, hasPermission };

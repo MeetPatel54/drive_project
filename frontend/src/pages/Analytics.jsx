@@ -10,7 +10,6 @@ import {
   FilterPanel,
   HorizontalBarChart,
   MetricCard,
-  TopStudentsTable,
 } from "../components/analytics";
 import { useFileViewer } from "../hooks/useFileViewer";
 import { formatResultScore } from "../utils/resultFormatters";
@@ -79,14 +78,6 @@ const Analytics = () => {
       .finally(() => setLoading(false));
   }, [appliedFilters]);
 
-  const topStudents = useMemo(
-    () =>
-      (analytics.topStudents || []).map((student) => ({
-        ...student,
-        scoreLabel: formatResultScore(student),
-      })),
-    [analytics.topStudents]
-  );
 
   const exportSections = useMemo(() => [
     {
@@ -123,16 +114,6 @@ const Analytics = () => {
         { key: "count", label: "Results" },
       ],
       rows: analytics.educationPerformance || [],
-    },
-    {
-      title: "Top Students",
-      columns: [
-        { key: "studentName", label: "Student" },
-        { key: "village", label: "Village" },
-        { key: "category", label: "Category" },
-        { key: "scoreLabel", label: "Score" },
-      ],
-      rows: topStudents,
     },
     {
       title: "Category-wise Scoreboard",
@@ -177,7 +158,7 @@ const Analytics = () => {
       ],
       rows: analytics.schoolAnalytics || [],
     },
-  ], [analytics, topStudents]);
+  ], [analytics]);
 
   const setFilter = (field, value) => {
     setFilters((current) => ({ ...current, [field]: value }));
@@ -273,10 +254,6 @@ const Analytics = () => {
           data={analytics.approvalAnalytics || []}
           centerLabel="Results"
         />
-      </div>
-
-      <div className="mt-6">
-        <TopStudentsTable students={topStudents} onView={openFileViewer} />
       </div>
 
       <div className="mt-6">

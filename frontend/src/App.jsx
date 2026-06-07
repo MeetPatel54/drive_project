@@ -9,11 +9,13 @@ import StudentDashboard from "./pages/StudentDashboard";
 import UploadResult     from "./pages/UploadResult";
 import TeacherDashboard from "./pages/TeacherDashboard";
 import Analytics        from "./pages/Analytics";
+import AdminPanel       from "./pages/AdminPanel";
 
 const RootRedirect = () => {
   const { user, loading } = useAuth();
   if (loading) return null;
   if (!user) return <Navigate to="/login" replace />;
+  if (["admin", "super_admin"].includes(user.role)) return <Navigate to="/admin" replace />;
   return <Navigate to={user.role === "teacher" ? "/teacher" : "/student"} replace />;
 };
 
@@ -56,6 +58,13 @@ const App = () => (
         <Route path="/teacher/analytics" element={
           <ProtectedRoute role="teacher">
             <Layout><Analytics /></Layout>
+          </ProtectedRoute>
+        } />
+
+        {/* Admin */}
+        <Route path="/admin" element={
+          <ProtectedRoute role={["admin", "super_admin"]}>
+            <Layout><AdminPanel /></Layout>
           </ProtectedRoute>
         } />
 

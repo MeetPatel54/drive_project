@@ -1,7 +1,18 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 
-const NATIVE_VILLAGES = ["Visnagar", "Kansa", "Basna", "Kamana", "Valam"];
+const USER_PERMISSIONS = [
+  "manage_users",
+  "manage_results",
+  "manage_villages",
+  "manage_categories",
+  "manage_notifications",
+  "manage_institutions",
+  "view_analytics",
+  "view_audit_logs",
+  "manage_storage",
+  "view_system_health",
+];
 
 const userSchema = new mongoose.Schema(
   {
@@ -25,8 +36,29 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ["student", "teacher"],
+      enum: ["student", "teacher", "admin", "super_admin"],
       default: "student",
+    },
+    permissions: {
+      type: [String],
+      enum: USER_PERMISSIONS,
+      default: [],
+    },
+    assignedCategories: {
+      type: [String],
+      default: [],
+    },
+    assignedVillages: {
+      type: [String],
+      default: [],
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+    lastLoginAt: {
+      type: Date,
+      default: null,
     },
     village: {
       type: String,
@@ -35,7 +67,6 @@ const userSchema = new mongoose.Schema(
     },
     nativeVillage: {
       type: String,
-      enum: [...NATIVE_VILLAGES, ""],
       required: function () {
         return this.role === "student";
       },
@@ -57,5 +88,13 @@ userSchema.pre("save", async function (next) {
 userSchema.methods.comparePassword = async function (candidatePassword) {
   return bcrypt.compare(candidatePassword, this.password);
 };
+
+userSchema.methods.hasPermission = function (permission) {
+  return this.role === "super_admin" || this.permissions.includes(permission);
+};
+
+userSchema.index({ role: 1, isActive: 1 });
+userSchema.index({ nativeVillage: 1 });
+userSchema.index({ lastLoginAt: -1 });
 
 module.exports = mongoose.model("User", userSchema);

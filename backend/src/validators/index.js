@@ -1,7 +1,6 @@
 const fs = require("fs");
 const { z } = require("zod");
 
-const NATIVE_VILLAGES = ["Visnagar", "Kansa", "Basna", "Kamana", "Valam"];
 const RESULT_CATEGORIES = [
   "1st-10th",
   "11th-12th & Diploma",
@@ -183,9 +182,7 @@ const registerSchema = z.object({
   name: z.string().trim().min(2, "Name must be at least 2 characters").max(100),
   email: z.string().trim().email("Invalid email address"),
   password: z.string().min(6, "Password must be at least 6 characters"),
-  nativeVillage: z.enum(NATIVE_VILLAGES, {
-    errorMap: () => ({ message: "Please select a valid native village" }),
-  }),
+  nativeVillage: z.string().trim().min(1, "Please select a native village"),
 });
 
 const loginSchema = z.object({
@@ -194,9 +191,7 @@ const loginSchema = z.object({
 });
 
 const updateProfileSchema = z.object({
-  nativeVillage: z.enum(NATIVE_VILLAGES, {
-    errorMap: () => ({ message: "Please select a valid native village" }),
-  }),
+  nativeVillage: z.string().trim().min(1, "Please select a native village"),
 });
 
 const uploadResultSchema = z

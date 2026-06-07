@@ -13,8 +13,15 @@ const ProtectedRoute = ({ children, role }) => {
   }
 
   if (!user) return <Navigate to="/login" replace />;
-  if (role && user.role !== role) {
-    return <Navigate to={user.role === "teacher" ? "/teacher" : "/student"} replace />;
+  const allowedRoles = Array.isArray(role) ? role : role ? [role] : [];
+  if (allowedRoles.length && !allowedRoles.includes(user.role)) {
+    const redirectMap = {
+      super_admin: "/admin",
+      admin: "/admin",
+      teacher: "/teacher",
+      student: "/student",
+    };
+    return <Navigate to={redirectMap[user.role] || "/"} replace />;
   }
 
   return children;
